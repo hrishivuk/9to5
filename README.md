@@ -18,7 +18,7 @@ Open the URL printed by Next.js. The existing local session uses http://localhos
 
 ## Phase 3 create your fighter
 
-The current flow is Landing -> Create Fighter -> Fighter Reveal -> Workday -> Scrum Lord Battle -> Result -> Workday. Creation is a five-step arcade sequence:
+The current flow is Landing -> Create Fighter -> Fighter Reveal -> Workday -> Scrum Lord Battle -> Result -> Office Loot -> Workday. Creation is a five-step arcade sequence:
 
 1. Display name, capped at 18 characters.
 2. Profession: Developer, Designer, Product, Marketing, Sales, Management or Other.
@@ -36,9 +36,17 @@ The Workday is a fictional internal-operations schedule rather than a fantasy ma
 
 Narrative time begins at 09:00, advances to 09:30 when the player enters The Scrum Lord meeting, and resolves to 09:47 on victory or 09:42 on defeat. It is event-driven rather than real time. The schedule promises locked 11:15, 14:00 and 16:59 problems and presents 17:00 CLOCK OUT as the destination without implementing those encounters.
 
-The battle starts from the run's current Mental Capacity. Victory persists the remaining value, marks The Scrum Lord complete and returns through CONTINUE WORKDAY to the prototype ending. Defeat retains PUT ON A PIP, then END SHIFT opens a failed-workday form. CLOCK IN AGAIN resets health, time, completion and battle state while keeping the fighter; NEW EMPLOYEE returns to creation.
+The battle starts from the run's current Mental Capacity. Victory persists the remaining value, marks The Scrum Lord complete and enters Office Loot through CLAIM YOUR COMPENSATION. Defeat retains PUT ON A PIP, then END SHIFT opens a failed-workday form. CLOCK IN AGAIN resets health, time, completion, desk items and battle state while keeping the fighter; NEW EMPLOYEE returns to creation.
 
 The existing 4:59 PM chaos resolver remains available through the battle engine's `allowChaos` option. The 09:30 Workday encounter explicitly disables it so the morning timeline remains coherent.
+
+## Phase 4C office loot
+
+Victory now creates a persisted `reward-pending` run with three distinct choices. `lib/items.ts` contains six handcrafted, typed definitions and a Fisher–Yates generator with injectable randomness for deterministic tests. The choices survive refresh; selecting one atomically adds it to the run, clears the offers and completes the prototype. The Workday condition report then shows a compact **YOUR DESK** slot beside persistent Mental Capacity.
+
+The pool contains Noise Cancelling Headphones (first enemy attack −40%), Double Espresso (maximum and starting Caffeine +1), Second Monitor (all damaging attacks +3), Ergonomic Chair (incoming attacks −2), Company MacBook (first damaging card +8) and intentionally useless rare LinkedIn Premium. Battle state tracks per-battle Headphones and MacBook consumption, the dynamic Caffeine maximum and future-compatible item arrays. Arena receipts name equipment bonuses or reductions directly; permanent desk items stay separate from temporary **ACTIVE BULLSHIT** statuses.
+
+The reward screen combines physical trading cards with procurement paperwork: rarity, category, full effect and flavour remain visible on every offer. Keyboard selection is native, chosen state has a structural border and confirmation receipt, and both rejected cards receive a readable BUDGET DENIED stamp. Mobile uses full-width stacked comparison cards. Reduced motion removes transforms while preserving selection and confirmation states.
 
 ## Phase 4A comprehension
 
@@ -90,8 +98,10 @@ These are simulated strategies, not human playtest claims. Pure blocking still p
 
 - `lib/fighter.ts`: creator choices, deterministic modifiers, stat normalization and default fighter.
 - `lib/workday.ts`: versioned local run state, schedule data and victory/defeat transitions.
+- `lib/items.ts`: six office item definitions, effect metadata and deterministic reward generation.
 - `components/FighterCreator.tsx`: five-step fighter creation and reveal preview.
 - `components/WorkdayScreen.tsx`, `CalendarTransition.tsx`: schedule, encounter briefing, prototype outcomes and meeting transition.
+- `components/OfficeLoot.tsx`: three-item benefits selection, denial states and acquisition confirmation.
 - `lib/battle.ts`: typed definitions, weighted choice, rules, immutable beat snapshots and timing.
 - `lib/sound.ts`, `components/useArcadeSound.ts`: gesture-gated audio and mute lifecycle.
 - `components/BattleScreen.tsx`: unchanged screen hierarchy, input lock, tutorial persistence and paced timeline playback.
@@ -108,5 +118,5 @@ These are simulated strategies, not human playtest claims. Pure blocking still p
 
 Player damage resolves first. A lethally hit enemy does not retaliate, but Force Push recoil still resolves and may cause a simultaneous knockout. Defence blocks the enemy attack including Scope's bonus, not recoil or chaos. Summon copies the actual prior rolled damage, including a previous summon. Percentage damage rounds to the nearest integer. Healing cannot exceed 100. Completed nonterminal rounds refill up to three caffeine. Simultaneous knockout displays mutual burnout. Rematch restores the encounter's starting Mental Capacity; continuing commits the final value to the run.
 
-Reduced motion disables shakes, recoil transforms, pulses and Workday paper rotations while keeping every timed text and state beat intact. The prototype intentionally stops at 09:47; locked schedule entries have no mechanics. Phase 4A deliberately leaves the battle more verbose during special branches, and repeated long defensive rounds can still feel slow. Sound output and pacing still merit human listening/playtesting on real devices. There are no new bosses, loot, upgrades, progression, online features, AI generation or accounts.
+Reduced motion disables shakes, recoil transforms, pulses, reward-card transforms and Workday paper rotations while keeping every timed text and state beat intact. The prototype intentionally stops at 09:47; locked schedule entries have no mechanics. One item can currently be earned and a fresh run clears it; there are no permanent unlocks, duplicates, currencies or rarity upgrades. Phase 4A deliberately leaves the battle more verbose during special branches, and repeated long defensive rounds can still feel slow. Sound output and pacing still merit human listening/playtesting on real devices. There are no new bosses, online features, AI generation or accounts.
 # 9to5

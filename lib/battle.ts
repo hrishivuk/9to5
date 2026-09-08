@@ -1,3 +1,4 @@
+import {itemById,type ItemId} from './items';
 export type CardId = 'defend'|'ship'|'force'|'summon';
 export type Card = {id:CardId;name:string;cost:number;type:string;expected:string;description:string;flavor:string;icon:string;color:string};
 export const cards:Card[]=[
@@ -12,6 +13,7 @@ export type BattleState = {
  player:number; enemy:number; caffeine:number; round:number;
  previousDamage:number; previousCard:CardId|null; buff:number;
  lastEnemy:EnemyId|null; repeat:number; finisher:string;
+ items:ItemId[];maxCaffeine:number;headphonesUsed:boolean;macbookUsed:boolean;
  result:'win'|'loss'|'draw'|null;
 };
 export type BeatKind = 'select'|'player-intro'|'player'|'recoil'|'enemy-turn'|'enemy-intro'|'enemy'|'status'|'heal'|'chaos-intro'|'chaos'|'refill'|'defeat';
@@ -19,10 +21,10 @@ export type Beat = {
  kind:BeatKind; duration:number; state:BattleState; text:string; detail:string;
  playerDamage:number; enemyDamage:number; heal:number; blocked:number;
  beforePlayer:number;beforeEnemy:number;caffeineBefore:number;caffeineAfter:number;
- baseDamage:number;statusBonus:number;incoming:number;
+ baseDamage:number;statusBonus:number;incoming:number;equipmentBonus:number;equipmentReduction:number;equipmentLabel:string;
  card:CardId; move?:EnemyId; copiedCard?:CardId; log:boolean;
 };
-export const initialBattle=(player=100):BattleState=>({player,enemy:100,caffeine:3,round:0,previousDamage:0,previousCard:null,buff:0,lastEnemy:null,repeat:0,finisher:'',result:null});
+export const initialBattle=(player=100,items:ItemId[]=[]):BattleState=>{const maxCaffeine=3+(items.includes('double-espresso')?itemById('double-espresso').effect.value:0);return {player,enemy:100,caffeine:maxCaffeine,maxCaffeine,round:0,previousDamage:0,previousCard:null,buff:0,lastEnemy:null,repeat:0,finisher:'',items:[...items],headphonesUsed:false,macbookUsed:false,result:null}};
 export function disabledReason(s:BattleState,c:Card){return s.result?'Battle complete':s.caffeine<c.cost?'Not enough caffeine':c.id==='summon'&&!s.previousDamage?'Play an attack first':''}
 const clamp=(n:number)=>Math.max(0,Math.min(100,n));
 function result(s:BattleState){s.result=s.player===0&&s.enemy===0?'draw':s.player===0?'loss':s.enemy===0?'win':null;}
@@ -34,21 +36,25 @@ export function resolveRound(current:BattleState,id:CardId,rng:()=>number=Math.r
  const s={...current,round:current.round+1};
  const beats:Beat[]=[];
  const emit=(kind:BeatKind,duration:number,text:string,detail='',extra:Partial<Beat>={})=>{
-  beats.push({kind,duration,state:{...s},text,detail,playerDamage:0,enemyDamage:0,heal:0,blocked:0,beforePlayer:s.player,beforeEnemy:s.enemy,caffeineBefore:s.caffeine,caffeineAfter:s.caffeine,baseDamage:0,statusBonus:0,incoming:0,card:id,log:false,...extra});
+  beats.push({kind,duration,state:{...s,items:[...s.items]},text,detail,playerDamage:0,enemyDamage:0,heal:0,blocked:0,beforePlayer:s.player,beforeEnemy:s.enemy,caffeineBefore:s.caffeine,caffeineAfter:s.caffeine,baseDamage:0,statusBonus:0,incoming:0,equipmentBonus:0,equipmentReduction:0,equipmentLabel:'',card:id,log:false,...extra});
  };
  const roll=(a:number,b:number)=>a+Math.floor(rng()*(b-a+1));
  const copiedCard=s.previousCard??'ship';
  const caffeineBefore=s.caffeine;s.caffeine-=card.cost;
- emit('select',600,card.cost?'CAFFEINE SPENT':'FREE ACTION',card.cost?`${caffeineBefore} / 3 → ${s.caffeine} / 3`:'No caffeine spent.',{caffeineBefore,caffeineAfter:s.caffeine});
+ emit('select',600,card.cost?'CAFFEINE SPENT':'FREE ACTION',card.cost?`${caffeineBefore} / ${s.maxCaffeine} → ${s.caffeine} / ${s.maxCaffeine}`:'No caffeine spent.',{caffeineBefore,caffeineAfter:s.caffeine});
  emit('player-intro',700,card.name,card.expected,{copiedCard});
- const damage=id==='ship'?roll(24,32):id==='force'?roll(35,45):id==='summon'?Math.round(s.previousDamage*.7):0;
+ const baseDamage=id==='ship'?roll(24,32):id==='force'?roll(35,45):id==='summon'?Math.round(s.previousDamage*.7):0;
+ let equipmentBonus=baseDamage&&s.items.includes('second-monitor')?itemById('second-monitor').effect.value:0;
+ let equipmentLabel=equipmentBonus?'SECOND MONITOR':'';
+ if(baseDamage&&s.items.includes('company-macbook')&&!s.macbookUsed){equipmentBonus+=itemById('company-macbook').effect.value;equipmentLabel='COMPANY MACBOOK';s.macbookUsed=true;}
+ const damage=baseDamage+equipmentBonus;
  const recoil=id==='force'&&rng()<.25?10:0;
  if(damage){s.previousDamage=damage;s.previousCard=id;s.finisher=card.name;}
  const beforeEnemy=s.enemy;
  s.enemy=clamp(s.enemy-damage);
  // A lethal Force Push still pays its recoil before the final outcome is decided.
  if(!recoil)result(s);
- emit('player',750,`HRISHI used ${card.name}.`,card.flavor,{enemyDamage:damage,beforeEnemy,baseDamage:damage,copiedCard,log:true});
+ emit('player',750,`HRISHI used ${card.name}.`,card.flavor,{enemyDamage:damage,beforeEnemy,baseDamage,equipmentBonus,equipmentLabel,copiedCard,log:true});
  if(recoil){
   const beforePlayer=s.player;
   s.player=clamp(s.player-10);result(s);if(s.result==='loss')s.finisher='PRODUCTION INCIDENT';
@@ -62,12 +68,16 @@ export function resolveRound(current:BattleState,id:CardId,rng:()=>number=Math.r
   emit('enemy-turn',650,"SCRUM LORD'S TURN",'Stand by for an unnecessary escalation.',{move});
   emit('enemy-intro',700,definition.name,`${definition.min}–${definition.max} DAMAGE`,{move});
   const baseDamage=roll(definition.min,definition.max);const statusBonus=s.buff;const incoming=baseDamage+statusBonus;
-  const hit=id==='defend'?Math.round(incoming*.3):incoming;
+  let equipmentReduction=0;let equipmentLabel='';
+  if(s.items.includes('headphones')&&!s.headphonesUsed){equipmentReduction=Math.round(incoming*itemById('headphones').effect.value/100);equipmentLabel='HEADPHONES';s.headphonesUsed=true;}
+  if(s.items.includes('ergonomic-chair')){equipmentReduction+=itemById('ergonomic-chair').effect.value;equipmentLabel=equipmentLabel?'HEADPHONES + CHAIR':'ERGONOMIC CHAIR';}
+  const equippedIncoming=Math.max(0,incoming-equipmentReduction);
+  const hit=id==='defend'?Math.round(equippedIncoming*.3):equippedIncoming;
   const blocked=incoming-hit;
   const beforePlayer=s.player;
   s.buff=0;s.repeat=s.lastEnemy===move?s.repeat+1:1;s.lastEnemy=move;
   s.player=clamp(s.player-hit);result(s);if(s.result)s.finisher=definition.name;
-  emit('enemy',750,`The Scrum Lord used ${definition.name}.`,definition.flavor,{move,playerDamage:hit,blocked,beforePlayer,baseDamage,statusBonus,incoming,log:true});
+  emit('enemy',750,`The Scrum Lord used ${definition.name}.`,definition.flavor,{move,playerDamage:hit,blocked,beforePlayer,baseDamage,statusBonus,incoming,equipmentReduction,equipmentLabel,log:true});
   if(!s.result&&move==='scope'){
    s.buff=8;emit('status',700,'JUST ONE SMALL CHANGE','Next Scrum Lord attack: +8 damage.',{move,log:true});
   }
@@ -83,8 +93,8 @@ export function resolveRound(current:BattleState,id:CardId,rng:()=>number=Math.r
   if(s.result)s.finisher='4:59 PM MESSAGE';
   emit('chaos',900,'4:59 PM MESSAGE','YOU −5 · SCRUM LORD −5',{playerDamage:5,enemyDamage:5,beforePlayer,beforeEnemy,log:true});
  }
- if(!s.result){const caffeineBefore=s.caffeine;const refill=Math.min(1,3-s.caffeine);s.caffeine+=refill;
- emit('refill',700,refill?'CAFFEINE +1':'CAFFEINE FULL',refill?`${caffeineBefore} / 3 → ${s.caffeine} / 3`:'No refill needed.',{caffeineBefore,caffeineAfter:s.caffeine});}
+ if(!s.result){const caffeineBefore=s.caffeine;const refill=Math.min(1,s.maxCaffeine-s.caffeine);s.caffeine+=refill;
+ emit('refill',700,refill?'CAFFEINE +1':'CAFFEINE FULL',refill?`${caffeineBefore} / ${s.maxCaffeine} → ${s.caffeine} / ${s.maxCaffeine}`:'No refill needed.',{caffeineBefore,caffeineAfter:s.caffeine});}
  if(s.result)emit('defeat',1200,s.result==='win'?'BOSS MANAGED':s.result==='loss'?'EMPLOYEE NOT RESPONDING':'MUTUAL BURNOUT','Performance review complete.');
  return beats;
 }
