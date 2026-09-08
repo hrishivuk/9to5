@@ -1,8 +1,8 @@
 import {cards,type Beat,type CardId} from '@/lib/battle';
 export default function MoveEffects({beat}:{beat:Beat|null}){
  if(!beat)return null;
- const player=beat.kind==='player-intro'||beat.kind==='player';
- const enemy=beat.kind==='enemy-intro'||beat.kind==='enemy';
+ const player=beat.kind==='player-intro';
+ const enemy=beat.kind==='enemy-intro';
  if(beat.kind==='recoil')return <div className="move-effect incident"><b>! PRODUCTION INCIDENT</b><small>This seemed safer locally.</small></div>;
  if(player){
   if(beat.card==='defend')return <div className="move-effect debug-effect"><code>$ reproduce --issue<br/><b>CANNOT REPRODUCE</b><br/>✓ defensive environment ready</code></div>;
